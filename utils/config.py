@@ -9,11 +9,13 @@ UNK = 0
 PAD = 1
 BOS = 2
 EOS = 3
+SEP = 4
 
 PAD_TOKEN = '[PAD]'
 UNK_TOKEN = '[UNK]'
 BOS_TOKEN = '[BOS]'
 EOS_TOKEN = '[EOS]'
+SEP_TOKEN = '[SEP]'
 
 beam_size=4
 emb_dim= 128
@@ -44,7 +46,7 @@ max_iterations = 500000
 d_k = 64
 d_v = 64
 n_head = 6
-tran = True
+tran = False
 dropout = 0.1
 n_layers = 6
 d_model = 128
@@ -52,10 +54,11 @@ d_inner = 512
 n_warmup_steps = 4000
 
 root_dir = os.path.expanduser("./")
-log_root = os.path.join(root_dir, "dataset/log/")
+log_root = os.path.join(root_dir, "data/canard/log/")
 
 #train_data_path = os.path.join(root_dir, "pointer_generator/dataset/finished_files/train.bin")
-train_data_path = os.path.join(root_dir, "dataset/finished_files/chunked/train_*")
+# train_data_path = os.path.join(root_dir, "dataset/finished_files/chunked/train_*")
+train_data_path = os.path.join(root_dir, "data/canard/train_tokenized.json")
 eval_data_path = os.path.join(root_dir, "dataset/finished_files/val.bin")
 decode_data_path = os.path.join(root_dir, "dataset/finished_files/test.bin")
-vocab_path = os.path.join(root_dir, "dataset/finished_files/vocab")
+vocab_path = os.path.join(root_dir, "data/canard/vocab.txt")

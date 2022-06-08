@@ -31,11 +31,11 @@ class Train(object):
 
         train_dir = os.path.join(config.log_root, 'train_%d' % (int(time.time())))
         if not os.path.exists(train_dir):
-            os.mkdir(train_dir)
+            os.makedirs(train_dir)
 
         self.model_dir = os.path.join(train_dir, 'models')
         if not os.path.exists(self.model_dir):
-            os.mkdir(self.model_dir)
+            os.makedirs(self.model_dir)
 
         self.summary_writer = tf.summary.FileWriter(train_dir)
 

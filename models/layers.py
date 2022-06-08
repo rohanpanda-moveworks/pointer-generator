@@ -5,10 +5,37 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.utils.rnn import pad_packed_sequence
 from torch.nn.utils.rnn import pack_padded_sequence
+from transformers import BertModel
 
 from utils import config
 from models.basic import BasicModule
 from models.attention import Attention
+
+
+
+class BERTEncoder(BasicModule):
+    def __init__(self):
+        super(BERTEncoder, self).__init__()
+        self.src_word_emb = nn.Embedding(config.vocab_size, config.emb_dim)
+        self.lstm = nn.LSTM(config.emb_dim, config.hidden_dim, batch_first=True, bidirectional=True)
+        self.fc = nn.Linear(config.hidden_dim * 2, config.hidden_dim * 2, bias=False)
+
+        self.init_params()
+
+    # seq_lens should be in descending order
+    def forward(self, input, seq_lens):
+        embedded = self.src_word_emb(input)
+
+        packed = pack_padded_sequence(embedded, seq_lens, batch_first=True)
+        output, hidden = self.lstm(packed)
+
+        encoder_outputs, _ = pad_packed_sequence(output, batch_first=True)  # h dim = B x l x n
+        encoder_outputs = encoder_outputs.contiguous()
+
+        encoder_feature = encoder_outputs.view(-1, 2 * config.hidden_dim)   # B*l x 2*hidden_dim
+        encoder_feature = self.fc(encoder_feature)
+
+        return encoder_outputs, encoder_feature, hidden
 
 
 class Encoder(BasicModule):

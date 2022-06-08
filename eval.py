@@ -29,7 +29,7 @@ class Evaluate(object):
 
         eval_dir = os.path.join(config.log_root, 'eval_%s' % (model_name))
         if not os.path.exists(eval_dir):
-            os.mkdir(eval_dir)
+            os.makedirs(eval_dir)
         self.summary_writer = tf.summary.FileWriter(eval_dir)
 
         self.model = Model(model_path, is_eval=True)

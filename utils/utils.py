@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import os
+from re import L
 import pyrouge
 import logging
 import numpy as np
@@ -62,6 +63,14 @@ def outputids2words(id_list, vocab, article_oovs):
         words.append(w)
     return words
 
+
+def history2sent(history):
+    final_sent = []
+    for sent in history:
+        final_sent.extend(sent.split())
+        final_sent.append('[SEP]')
+    final_sent.pop()
+    return " ".join(final_sent)
 
 def abstract2sents(abstract):
     cur_p = 0

@@ -11,7 +11,7 @@ import tensorflow as tf
 import torch
 import torch.optim as optim
 
-from transformer.model import Model
+from models.model import Model
 from transformer.optim import ScheduledOptim
 from utils import config
 from utils.dataset import Vocab
@@ -31,13 +31,13 @@ class Train(object):
 
         train_dir = os.path.join(config.log_root, 'train_%d' % (int(time.time())))
         if not os.path.exists(train_dir):
-            os.mkdir(train_dir)
+            os.makedirs(train_dir,exist_ok=True)
 
         self.model_dir = os.path.join(train_dir, 'models')
         if not os.path.exists(self.model_dir):
-            os.mkdir(self.model_dir)
+            os.makedirs(self.model_dir,exist_ok=True)
 
-        self.summary_writer = tf.summary.FileWriter(train_dir)
+        self.summary_writer = tf.summary.create_file_writer(train_dir)
 
     def save_model(self, running_avg_loss, iter):
         model_state_dict = self.model.state_dict()
@@ -55,20 +55,20 @@ class Train(object):
 
         device = torch.device('cuda' if use_cuda else 'cpu')
 
-        self.model = Model(
-            config.vocab_size,
-            config.vocab_size,
-            config.max_enc_steps,
-            config.max_dec_steps,
-            d_k=config.d_k,
-            d_v=config.d_v,
-            d_model=config.d_model,
-            d_word_vec=config.emb_dim,
-            d_inner=config.d_inner_hid,
-            n_layers=config.n_layers,
-            n_head=config.n_head,
-            dropout=config.dropout).to(device)
-
+        # self.model = Model(
+        #     config.vocab_size,
+        #     config.vocab_size,
+        #     config.max_enc_steps,
+        #     config.max_dec_steps,
+        #     d_k=config.d_k,
+        #     d_v=config.d_v,
+        #     d_model=config.d_model,
+        #     d_word_vec=config.emb_dim,
+        #     d_inner=config.d_inner_hid,
+        #     n_layers=config.n_layers,
+        #     n_head=config.n_head,
+        #     dropout=config.dropout).to(device)
+        self.model = Model(is_tran=True)
         self.optimizer = ScheduledOptim(
             optim.Adam(
                 filter(lambda x: x.requires_grad, self.model.parameters()),

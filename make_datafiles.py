@@ -59,7 +59,7 @@ def chunk_file(set_name):
 def chunk_all():
     # Make a dir to hold the chunks
     if not os.path.isdir(chunks_dir):
-        os.mkdir(chunks_dir)
+        os.makedirs(chunks_dir)
     # Chunk the data
     for set_name in ['train', 'val', 'test']:
         print("Splitting %s data into chunks..." % set_name)

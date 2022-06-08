@@ -8,6 +8,7 @@ import struct
 import numpy as np
 import tensorflow as tf
 from random import shuffle
+import json
 from threading import Thread
 from tensorflow.core.example import example_pb2
 
@@ -26,6 +27,7 @@ PAD_TOKEN = '[PAD]'  # This has a vocab id, which is used to pad the encoder inp
 UNK_TOKEN = '[UNK]'  # This has a vocab id, which is used to represent out-of-vocabulary words
 BOS_TOKEN = '[BOS]'  # This has a vocab id, which is used at the start of every decoder input sequence
 EOS_TOKEN = '[EOS]'  # This has a vocab id, which is used at the end of untruncated target sequences
+SEP_TOKEN = '[SEP]'  # This has a vocab id, which is used to separate each of the utterances
 # Note: none of <s>, </s>, [PAD], [UNK], [START], [STOP] should appear in the vocab file.
 
 
@@ -36,8 +38,9 @@ class Vocab(object):
         self.idx2word = {}
         self.count = 0     # keeps track of total number of words in the Vocab
 
+        
         # [UNK], [PAD], [BOS] and [EOS] get the ids 0,1,2,3.
-        for w in [UNK_TOKEN, PAD_TOKEN, BOS_TOKEN, EOS_TOKEN]:
+        for w in [UNK_TOKEN, PAD_TOKEN, BOS_TOKEN, EOS_TOKEN, SEP_TOKEN]:
             self.word2idx[w] = self.count
             self.idx2word[self.count] = w
             self.count += 1
@@ -50,9 +53,9 @@ class Vocab(object):
                     print('Warning: incorrectly formatted line in vocabulary file: %s' % line.strip())
                     continue
                 w = items[0]
-                if w in [SENTENCE_STA, SENTENCE_END, UNK_TOKEN, PAD_TOKEN, BOS_TOKEN, EOS_TOKEN]:
+                if w in [SENTENCE_STA, SENTENCE_END, UNK_TOKEN, PAD_TOKEN, BOS_TOKEN, EOS_TOKEN, SEP_TOKEN]:
                     raise Exception(
-                        '<s>, </s>, [UNK], [PAD], [BOS] and [EOS] shouldn\'t be in the vocab file, but %s is' % w)
+                        '<s>, </s>, [UNK], [PAD], [BOS], [SEP] and [EOS] shouldn\'t be in the vocab file, but %s is' % w)
                 if w in self.word2idx:
                     raise Exception('Duplicated word in vocabulary file: %s' % w)
                 self.word2idx[w] = self.count
@@ -92,7 +95,7 @@ class Example(object):
         eos_decoding = vocab.word2id(EOS_TOKEN)
 
         # Process the article
-        article_words = article.decode().split()
+        article_words = article.split()
         if len(article_words) > config.max_enc_steps:
             article_words = article_words[:config.max_enc_steps]
         self.enc_len = len(article_words)  # store the length after truncation but before padding
@@ -100,7 +103,8 @@ class Example(object):
                           article_words]   # list of word ids; OOVs are represented by the id for UNK token
 
         # Process the abstract
-        abstract = ' '.encode().join(abstract_sentences).decode()
+        # abstract = ' '.encode().join(abstract_sentences).decode()
+        abstract = abstract_sentences
         abstract_words = abstract.split()  # list of strings
         abs_ids = [vocab.word2id(w) for w in
                    abstract_words]         # list of word ids; OOVs are represented by the id for UNK token
@@ -278,8 +282,8 @@ class Batcher(object):
 
         while True:
             try:
-                (article,
-                 abstract) = input_gen.__next__()  # read the next example from file. article and abstract are both strings.
+                (history,
+                 rewrite,cls_target) = input_gen.__next__()  # read the next example from file. article and abstract are both strings.
             except StopIteration:  # if there are no more examples:
                 tf.logging.info("The example generator for this example queue filling thread has exhausted data.")
                 if self.single_pass:
@@ -290,9 +294,11 @@ class Batcher(object):
                 else:
                     raise Exception("single_pass mode is off but the example generator is out of data; error.")
 
-            abstract_sentences = [sent.strip() for sent in utils.abstract2sents(
-                abstract)]  # Use the <s> and </s> tags in abstract to get a list of sentences.
-            example = Example(article, abstract_sentences, self._vocab)
+            # rewrite_sentences = [sent.strip() for sent in utils.abstract2sents(
+            #     rewrite)]  # Use the <s> and </s> tags in abstract to get a list of sentences.
+            history_concat = utils.history2sent(history)
+            # print(f"{history_concat=}")
+            example = Example(history_concat, rewrite, self._vocab)
             self._example_queue.put(example)
 
     def fill_batch_queue(self):
@@ -344,35 +350,48 @@ class Batcher(object):
         while True:
             e = example_generator.__next__()  # e is a tf.Example
             try:
-                article_text = e.features.feature['article'].bytes_list.value[
-                    0]  # the article text was saved under the key 'article' in the data files
-                abstract_text = e.features.feature['abstract'].bytes_list.value[
-                    0]  # the abstract text was saved under the key 'abstract' in the data files
+                # article_text = e.features.feature['article'].bytes_list.value[
+                #     0]  # the article text was saved under the key 'article' in the data files
+                # abstract_text = e.features.feature['abstract'].bytes_list.value[
+                #     0]  # the abstract text was saved under the key 'abstract' in the data files
+                history_text = e['input']
+                rewrite_text = e['target']
+                needs_rewrite = e['needs_rewrite']
             except ValueError:
                 tf.logging.error('Failed to get article or abstract from example')
                 continue
-            if len(article_text) == 0:  # See https://github.com/abisee/pointer-generator/issues/1
+            if len(history_text) == 0:  # See https://github.com/abisee/pointer-generator/issues/1
                 # tf.logging.warning('Found an example with empty article text. Skipping it.')
                 continue
             else:
-                yield (article_text, abstract_text)
+                yield (history_text, rewrite_text, needs_rewrite)
+
+    # def example_generator(self, data_path, single_pass):
+    #     while True:
+    #         filelist = glob.glob(data_path)  # get the list of datafiles
+    #         assert filelist, ('Error: Empty filelist at %s' % data_path)  # check filelist isn't empty
+    #         if single_pass:
+    #             filelist = sorted(filelist)
+    #         else:
+    #             random.shuffle(filelist)
+    #         for f in filelist:
+    #             reader = open(f, 'rb')
+    #             while True:
+    #                 len_bytes = reader.read(8)
+    #                 if not len_bytes: break  # finished reading this file
+    #                 str_len = struct.unpack('q', len_bytes)[0]
+    #                 example_str = struct.unpack('%ds' % str_len, reader.read(str_len))[0]
+    #                 yield example_pb2.Example.FromString(example_str)
+    #         if single_pass:
+    #             print("example_generator completed reading all datafiles. No more data.")
+    #             break
 
     def example_generator(self, data_path, single_pass):
         while True:
-            filelist = glob.glob(data_path)  # get the list of datafiles
-            assert filelist, ('Error: Empty filelist at %s' % data_path)  # check filelist isn't empty
-            if single_pass:
-                filelist = sorted(filelist)
-            else:
-                random.shuffle(filelist)
-            for f in filelist:
-                reader = open(f, 'rb')
-                while True:
-                    len_bytes = reader.read(8)
-                    if not len_bytes: break  # finished reading this file
-                    str_len = struct.unpack('q', len_bytes)[0]
-                    example_str = struct.unpack('%ds' % str_len, reader.read(str_len))[0]
-                    yield example_pb2.Example.FromString(example_str)
-            if single_pass:
-                print("example_generator completed reading all datafiles. No more data.")
-                break
+            reader = open(data_path)
+
+            for line in reader:
+                # print("line ",line)                
+                datapt = json.loads(line)
+                # print('datapt ',datapt)
+                yield datapt
